@@ -96,7 +96,7 @@ octed_name=$(echo -n "_$name"              |
              sed 's/[[:blank:]]\{1,\}/\\/g')
 
 # main
-awk '
+env - awk '
 BEGIN {
 	RS  = "\n";
 	OFS = ""  ;
