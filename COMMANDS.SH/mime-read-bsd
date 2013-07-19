@@ -7,10 +7,8 @@
 print_usage_and_exit () {
 	cat <<____USAGE 1>&2
 Usage   : ${0##*/} [-v] <name> <MIME-file>
-Version : Thu Jul 19 03:32:21 JST 2013
+Version : Thu Jul 18 15:50:01 JST 2013
         : Open usp Tukubai (POSIX.1 Bourne Shell/POSIX.1 commands)
-        :   * Although GNU AWK produces better performance than the
-        :     other AWKs
 ____USAGE
 	exit 1
 }
@@ -18,19 +16,6 @@ ____USAGE
 # initialize
 vopt='#'
 novopt=''
-binarable_awk=1
-nobawk=''
-novoptnobawk='#'
-make_temp_file () {
-	tmpfile=$(mktemp -t "${0##*/}.XXXXXXXX")
-	if [ $? -eq 0 ]; then
-		tmpfiles="$tmpfiles $tmpfile"
-		trap "rm -f $tmpfiles; exit" EXIT HUP INT QUIT ALRM SEGV TERM
-	else
-		echo "${0##*/} : Cannot create a temporary file" 1>&2
-		exit 1
-	fi
-}
 
 # parse arguments
 [ $# -ge 1 ] || print_usage_and_exit
@@ -98,21 +83,8 @@ then
   print_usage_and_exit
 fi
 if [ \( ! -r "$mime_file" \) -a \( "_$mime_file" != '_-' \) ]; then
-	echo "${0##*/}: Cannot open the file" 1>&2
-	exit 1
-fi
-
-# Does this host have a "binarable" AWK command?
-while :; do
-	CMD_AWK=$(which gawk 2>/dev/null)
-	[ $? -eq 0 ] && break
-	CMD_AWK=$(which awk 2>/dev/null)
-	[ $($CMD_AWK 'BEGIN{print length(sprintf("\000"))}') -eq 1 ] && break
-	binarable_awk=0; break
-done
-if [ $binarable_awk -eq 0 ]; then
-	nobawk='#'
-	[ -z "$novopt" ] && novoptnobawk=''
+  echo "${0##*/}: Cannot open the file" 1>&2
+  exit 1
 fi
 
 # transfer the characters to octet escaped strings to import to AWK safely
@@ -123,8 +95,17 @@ octed_name=$(echo -n "_$name"              |
              sed 's/[[:blank:]]*$//'       |
              sed 's/[[:blank:]]\{1,\}/\\/g')
 
-# awk code
-awk_code='
+# main
+cat "$mime_file"                            |
+od -v -A n -t o1                            |
+sed 's/[[:blank:]]\{2,\}/ /g'               |
+sed 's/ 101/ 101 103/g'                     |
+sed 's/ 000/ 101 104/g'                     |
+xargs echo "  "                             |
+sed 's/[[:blank:]]*\([0-7]\{3,3\}\)/\\\1/g' |
+sed 's/^\(.*\)$/'"'"'\1'"'"'/'              |
+xargs -n 1 printf                           |
+env - awk '
 BEGIN {
 	RS  = "\n";
 	OFS = ""  ;
@@ -177,26 +158,22 @@ BEGIN {
 		#    -> must be in body
 		if (! match(line, /\r$/)) {
 			if (status == 11) {
-				'$novopt$nobawk'print prefix, line;
-				'$novopt$nobawk'prefix = lf;
+				'$novopt'print prefix, line;
+				'$novopt'prefix = lf;
 			}
 		# B. the CR+LF terminated and status==11 line
 		#    -> must be in body (wanted)
 		} else if (status == 11) {
 			if (       line == boundstr1[depth]) {
-				'$novoptnobawk'print NR;
-				'$novopt'exit;
 				# transfer to the next header
 				status =  0;
 				'$vopt'numofboundaries++;
 			} else if (line == boundstr2[depth]) {
-				'$novoptnobawk'print NR;
-				'$novopt'exit;
 				up_to_the_parent();
 				status = 10;
 			} else {
-				'$novopt$nobawk'print prefix, substr(line, 1, length(line)-1);
-				'$novopt$nobawk'prefix = crlf;
+				'$novopt'print prefix, substr(line, 1, length(line)-1);
+				'$novopt'prefix = crlf;
 			}
 		# C. the CR+LF terminated and status==10 line
 		#     -> must be in body (not wanted)
@@ -307,7 +284,6 @@ BEGIN {
 				if (length(boundary)) {
 					down_to_the_child();
 				}
-				'$novoptnobawk'if (status==11) {print NR+1, ":";}
 				continue;
 			}
 			# D4. Other headers
@@ -346,35 +322,13 @@ function up_to_the_parent() {
 	}
 	depth--;
 }
-'
-
-# main #1 (GNU AWK available or -v option)
-if [ -n "$novoptnobawk" ]; then
-	env - $CMD_AWK "$awk_code" "$mime_file"
-	exit $?
-fi
-
-# main #2 (GNU AWK unavailable and without -v option)
-if [ "$mime_file" = '-' ]; then
-	make_temp_file
-	mime_file=$tmpfile
-	cat > "$mime_file"
-fi
-st_ed_linenums=$(env - $CMD_AWK "$awk_code" "$mime_file")
-ret=$?
-[ $ret -ne 0 ] && exit $ret
-st_linenum=${st_ed_linenums%:*}
-ed_linenum=${st_ed_linenums#*:}
-if [ -n "$ed_linenum" ]; then
-	make_temp_file
-	outfile0=$tmpfile
-	tail -n +$st_linenum "$mime_file"  |
-	head -n $((ed_linenum-st_linenum)) > $outfile0
-	ret=$?
-	[ $ret -ne 0 ] && exit $ret
-	head -c $(($(wc -c $outfile0 | awk '{print $1}')-2)) $outfile0
-	exit $?
-else
-	tail -n +$st_linenum "$mime_file"
-	exit $?
-fi
+'                                           |
+od -v -A n -t o1                            |
+tr -d '\n'                                  |
+sed 's/[[:blank:]]\{2,\}/ /g'               |
+sed 's/ 101 104/ 000/g'                     |
+sed 's/ 101 103/ 101/g'                     |
+xargs echo "  "                             |
+sed 's/[[:blank:]]*\([0-7]\{3,3\}\)/\\\1/g' |
+sed 's/^\(.*\)$/'"'"'\1'"'"'/'              |
+xargs -n 1 printf
