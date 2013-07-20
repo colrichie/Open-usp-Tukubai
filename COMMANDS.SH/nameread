@@ -7,8 +7,8 @@
 print_usage_and_exit () {
 	cat <<____USAGE 1>&2
 Usage   : ${0##*/} [-el] [-d<c>] [-i<string>] <name> <name_file>
-Version : Thu Oct 25 01:02:10 JST 2012
-        : Open usp Tukubai (POSIX.1 Bourne Shell/POSIX.1 commands/UTF-8)
+Version : Sat Jul 20 12:42:03 JST 2013
+        : Open usp Tukubai (POSIX.1 Bourne Shell/POSIX.1 commands)
 ____USAGE
 	exit 1
 }
@@ -117,9 +117,24 @@ if [ \( ! -r "$name_file" \) -a \( "_$name_file" != '_-' \) ]; then
 fi
 
 # transfer the characters to octet escaped strings to import to AWK safely
-octed_dopt=$(echo -n "_$dopt" | od -A n -t o1 | tr -d '\n' | sed 's/^[[:blank:]]*137//' | sed 's/[[:blank:]]*$//' | sed 's/[[:blank:]]\{1,\}/\\/g')
-octed_iopt=$(echo -n "_$iopt" | od -A n -t o1 | tr -d '\n' | sed 's/^[[:blank:]]*137//' | sed 's/[[:blank:]]*$//' | sed 's/[[:blank:]]\{1,\}/\\/g')
-octed_name=$(echo -n "_$name" | od -A n -t o1 | tr -d '\n' | sed 's/^[[:blank:]]*137//' | sed 's/[[:blank:]]*$//' | sed 's/[[:blank:]]\{1,\}/\\/g')
+octed_dopt=$(echo -n "_$dopt"              |
+             od -v -A n -t o1              |
+             tr -d '\n'                    |
+             sed 's/^[[:blank:]]*137//'    |
+             sed 's/[[:blank:]]*$//'       |
+             sed 's/[[:blank:]]\{1,\}/\\/g')
+octed_iopt=$(echo -n "_$iopt"              |
+             od -v -A n -t o1              |
+             tr -d '\n'                    |
+             sed 's/^[[:blank:]]*137//'    |
+             sed 's/[[:blank:]]*$//'       |
+             sed 's/[[:blank:]]\{1,\}/\\/g')
+octed_name=$(echo -n "_$name"              |
+             od -v -A n -t o1              |
+             tr -d '\n'                    |
+             sed 's/^[[:blank:]]*137//'    |
+             sed 's/[[:blank:]]*$//'       |
+             sed 's/[[:blank:]]\{1,\}/\\/g')
 
 #
 awk_code='

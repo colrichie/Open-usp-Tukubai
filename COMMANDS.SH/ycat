@@ -7,7 +7,7 @@
 print_usage_and_exit () {
 	cat <<____USAGE 1>&2
 Usage   : ${0##*/} [-<n>] <file1> <file2> ...
-Version : Thu Oct 25 01:12:07 JST 2012
+Version : Sat Jul 20 12:58:14 JST 2013
         : Open usp Tukubai (POSIX.1 Bourne Shell/POSIX.1 commands/UTF-8)
 ____USAGE
 	exit 1
@@ -55,7 +55,10 @@ for arg in "$@"; do
 		mktemp_instead_of_stdin
 		file=$tmpfile
 	elif [ \( -f "$arg" \) -o \( -c "$arg" \) ]; then
-		str=$(echo -n "_$arg" | sed 's/^_//' | od -A n -t x1 | tr -d ' \n')
+		str=$(echo -n "_$arg"  |
+		      sed 's/^_//'     |
+		      od -v -A n -t x1 |
+		      tr -d ' \n'      )
 		if echo "$hexed_filelist" | grep -F " $str " > /dev/null; then
 			retry=100
 			while [ $retry -gt 0 ]; do
@@ -89,13 +92,23 @@ for arg in "$@"; do
 		exit 1
 	fi
 	# transfer the characters to octet escaped strings to import to AWK safely
-	octed_filenames="$octed_filenames $(echo -n "_$file" | od -A n -t o1 | tr -d '\n' | sed 's/^[[:blank:]]*137//' | sed 's/[[:blank:]]*$//' | sed 's/[[:blank:]]\{1,\}/\\/g')"
+	octed_filenames="$octed_filenames $(echo -n "_$file"             |
+	                                   od -v -A n -t o1              |
+	                                   tr -d '\n'                    |
+	                                   sed 's/^[[:blank:]]*137//'    |
+	                                   sed 's/[[:blank:]]*$//'       |
+	                                   sed 's/[[:blank:]]\{1,\}/\\/g')"
 done
 octed_filenames=${octed_filenames# }
 if [ -z "$octed_filenames" ]; then
 	use_stdin=1
 	mktemp_instead_of_stdin
-	octed_filenames=$(echo -n "_$tmpfile" | od -A n -t o1 | tr -d '\n' | sed 's/^[[:blank:]]*137//' | sed 's/[[:blank:]]*$//' | sed 's/[[:blank:]]\{1,\}/\\/g')
+	octed_filenames=$(echo -n "_$tmpfile"           |
+	                  od -v -A n -t o1              |
+	                  tr -d '\n'                    |
+	                  sed 's/^[[:blank:]]*137//'    |
+	                  sed 's/[[:blank:]]*$//'       |
+	                  sed 's/[[:blank:]]\{1,\}/\\/g')
 fi
 
 
@@ -246,18 +259,14 @@ BEGIN {
 	}
 }
 '
-if [ -z "$LC_ALL" ]; then
-	LC_CTYPE=C;          export LC_CTYPE
-else
-	LANG=$LC_ALL;        export LANG
-	LC_COLLATE=$LC_ALL;  export LC_COLLATE
-	LC_MESSAGES=$LC_ALL; export LC_MESSAGES
-	LC_NUMERIC=$LC_ALL;  export LC_NUMERIC
-	LC_CTYPE=C;          export LC_CTYPE
-	unset LC_ALL
-fi
 if [ -z "$tmpfiles" ]; then
-	exec awk -v numoption=$numoption -v "octed_filenames=$octed_filenames" -v "max_widthes=$max_widthes" "$awkcode_main2_ycat$awkcode_func_utf8strlen"
+	exec env - awk -v numoption=$numoption                       \
+	               -v "octed_filenames=$octed_filenames"         \
+	               -v "max_widthes=$max_widthes"                 \
+	               "$awkcode_main2_ycat$awkcode_func_utf8strlen"
 else
-	awk -v numoption=$numoption -v "octed_filenames=$octed_filenames" -v "max_widthes=$max_widthes" "$awkcode_main2_ycat$awkcode_func_utf8strlen"
+	env - awk -v numoption=$numoption                       \
+	          -v "octed_filenames=$octed_filenames"         \
+	          -v "max_widthes=$max_widthes"                 \
+	          "$awkcode_main2_ycat$awkcode_func_utf8strlen"
 fi
